@@ -1,8 +1,10 @@
+@import "constants";
+
 #left-panel {
-  margin-top: 60px;
+  margin-top: $admin-navbar-logo-height;
   padding: 0;
   background-color: #003189;
-  height: calc(100% - 60px);
+  height: calc(100% - #{$admin-navbar-logo-height});
   position: fixed;
   top: 0;
   left: 0;
