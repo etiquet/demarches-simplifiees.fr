@@ -1,5 +1,5 @@
 import { DirectUpload } from '@rails/activestorage';
-import { ajax } from '@utils';
+import { ajax, fire } from '@utils';
 import ProgressBar from './progress-bar';
 import FileUploadError, {
   errorFromDirectUploadMessage,
@@ -47,8 +47,31 @@ export default class Uploader {
     Throws a FileUploadError on failure.
     */
   async _upload() {
+    //
+    // DEBUG: hook into FileReader onload event
+    //
+    const originalImpl = FileReader.prototype.addEventListener;
+    FileReader.prototype.addEventListener = function() {
+      // When DirectUploads attempts to add an event listener for "error",
+      // also insert a custom event listener of our that will report errors to Sentry.
+      if (arguments[0] == 'error') {
+        let handler = event => {
+          let message = `FileReader error: ${JSON.stringify(event)}`;
+          fire(document, 'sentry:capture-exception', new Error(message));
+        };
+        originalImpl.apply(this, ['error', handler]);
+      }
+      // Add the originally requested event listener
+      return originalImpl.apply(this, arguments);
+    };
+
     return new Promise((resolve, reject) => {
       this.directUpload.create((errorMsg, attributes) => {
+        //
+        // DEBUG: remove the hook we set before.
+        //
+        FileReader.prototype.addEventListener = originalImpl;
+
         if (errorMsg) {
           let error = errorFromDirectUploadMessage(errorMsg);
           reject(error);
