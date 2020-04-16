@@ -1,8 +1,5 @@
-.toolbar
-  %button.button.primary.new-area Ajouter une zone
-  %select.select2.adresse{ data: { address: true }, placeholder: 'Saisissez une adresse ou positionner la carte' }
 
-.carte.edit{ data: { geo: geo_data(champ) }, class: "carte-#{form.index}" }
+= react_component("MapEditor", { featureCollection: champ.to_feature_collection } )
 
 .geo-areas
   = render partial: 'shared/champs/carte/geo_areas', locals: { champ: champ, error: false }
