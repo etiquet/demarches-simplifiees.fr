@@ -1,19 +1,49 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import PropTypes from 'prop-types';
-import ReactMapboxGl from 'react-mapbox-gl';
+import ReactMapboxGl, { GeoJSONLayer } from 'react-mapbox-gl';
 import { ZoomControl } from 'react-mapbox-gl';
 import DrawControl from 'react-mapbox-gl-draw';
 import SwitchMapStyle from './SwitchMapStyle';
 import SearchInput from './SearchInput';
+import { fire, delegate } from '@utils';
 import '@mapbox/mapbox-gl-draw/dist/mapbox-gl-draw.css';
 
 const Map = ReactMapboxGl({});
 
-const MapEditor = ({ featureCollection: { bbox, features, type } }) => {
+const MapEditor = ({ featureCollection: { bbox, features, id } }) => {
   const drawControl = useRef(null);
   const [style, setStyle] = useState('ortho');
+  const [test, setTest] = useState([]);
   const [coords, setCoords] = useState([1.7, 46.9]);
   const [zoom, setZoom] = useState([5]);
+
+  const selectionsUtilisateurs = features.filter(
+    feature => feature.properties.source === 'selection_utilisateur'
+  );
+  console.log('render');
+  const cadastresFeatureCollection = {
+    type: 'FeatureCollection',
+    features: []
+  };
+
+  for (let feature of features) {
+    switch (feature.properties.source) {
+      case 'cadastre':
+        cadastresFeatureCollection.features.push(feature);
+        break;
+    }
+  }
+
+  const polygonCadastresFill = {
+    'fill-color': '#EC3323',
+    'fill-opacity': 0.3
+  };
+
+  const polygonCadastresLine = {
+    'line-color': 'rgba(255, 0, 0, 1)',
+    'line-width': 4,
+    'line-dasharray': [1, 1]
+  };
 
   const mapStyle =
     style === 'ortho'
@@ -21,36 +51,65 @@ const MapEditor = ({ featureCollection: { bbox, features, type } }) => {
       : 'https://raw.githubusercontent.com/etalab/cadastre.data.gouv.fr/master/components/react-map-gl/styles/vector.json';
 
   let selections = [];
+
+  const createFeatureCollection = latLngs => {
+    return {
+      type: 'FeatureCollection',
+      features: latLngs.map(featurePolygonLatLngs)
+    };
+  };
+
+  const featurePolygonLatLngs = latLngs => {
+    return {
+      type: 'Feature',
+      properties: {
+        source: 'selection_utilisateur'
+      },
+      geometry: {
+        type: 'Polygon',
+        coordinates: [latLngs]
+      }
+    };
+  };
+
   const onDrawCreate = ({ features }) => {
-    const updateArray = [...selections, ...features];
-    selections = [...updateArray];
+    const featureCollection = createFeatureCollection(
+      features[0].geometry.coordinates
+    );
+    console.log(featureCollection);
+    console.log(JSON.stringify(featureCollection));
   };
 
   const onDrawUpdate = ({ features }) => {
-    let updatedArray = selections.filter(
-      selection => selection.id !== features[0].id
+    const featureCollection = createFeatureCollection(
+      features[0].geometry.coordinates
     );
-    selections = [...updatedArray, ...features];
+    let input = document.querySelector(
+      `input[data-feature-collection-id="${id}"]`
+    );
+    input.value = JSON.stringify(featureCollection);
+    fire(input, 'change');
   };
 
   const onDrawDelete = ({ features }) => {
-    let updatedArray = selections.filter(
-      selection => selection.id !== features[0].id
-    );
-    selections = [...updatedArray];
+    console.log(features);
   };
 
   const onMapLoad = () => {
-    if (features.selectionsUtilisateur) {
-      features.selectionsUtilisateur.map(selection => {
+    if (selectionsUtilisateurs.length > 0) {
+      selectionsUtilisateurs.map(selection => {
         drawControl.current.draw.add({
           type: 'Feature',
-          properties: {},
+          properties: { source: 'selection_utilisateur' },
           geometry: selection.geometry
         });
       });
     }
   };
+
+  useEffect(() => {
+    setTest(features);
+  }, [features]);
 
   return (
     <>
@@ -67,7 +126,7 @@ const MapEditor = ({ featureCollection: { bbox, features, type } }) => {
         />
       </div>
       <Map
-        //onStyleLoad={() => onMapLoad()}
+        onStyleLoad={() => onMapLoad()}
         fitBounds={bbox}
         fitBoundsOptions={{ padding: 100 }}
         center={coords}
@@ -77,6 +136,11 @@ const MapEditor = ({ featureCollection: { bbox, features, type } }) => {
           height: '500px'
         }}
       >
+        <GeoJSONLayer
+          data={cadastresFeatureCollection}
+          fillPaint={polygonCadastresFill}
+          linePaint={polygonCadastresLine}
+        />
         <DrawControl
           ref={drawControl}
           onDrawCreate={onDrawCreate}
@@ -114,7 +178,8 @@ MapEditor.propTypes = {
   featureCollection: PropTypes.shape({
     type: PropTypes.string,
     bbox: PropTypes.array,
-    features: PropTypes.array
+    features: PropTypes.array,
+    id: PropTypes.number
   })
 };
 
